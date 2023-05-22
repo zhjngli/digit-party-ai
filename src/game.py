@@ -59,7 +59,7 @@ class DigitParty:
         self.digits = (
             list(map(lambda d: Digit(d), digits))
             if digits
-            else [Digit(random.randrange(1, self.max_num)) for _ in range(n * n)]
+            else [Digit(random.randint(1, self.max_num)) for _ in range(n * n)]
         )
         self.placements: List[Tuple[Tuple[int, int], Digit]] = []
         self.score = 0
