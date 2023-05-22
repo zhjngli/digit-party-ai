@@ -1,4 +1,7 @@
-.PHONY: clean install test lint format
+.PHONY: run clean install test lint format
+
+run:
+	pipenv run python3 src/game.py
 
 clean:
 	rm -r build/ dist/ **/*.egg-info/ .mypy_cache/ && find . -name __pycache__ -type d -exec rm -r {} \;

@@ -10,8 +10,11 @@ from data import max_conns
 class Tile(ABC):
     @property
     @abstractmethod
-    def val(self):
+    def val(self) -> int:
         pass
+
+    def __str__(self) -> str:
+        return "."
 
 
 class Digit(Tile):
@@ -21,14 +24,29 @@ class Digit(Tile):
         self._val = val
 
     @property
-    def val(self):
+    def val(self) -> int:
         return self._val
+
+    def __eq__(self, d):
+        return self.val == d.val
+
+    def __str__(self) -> str:
+        return str(self._val)
+
+    def __hash__(self):
+        return hash(self._val)
 
 
 class Empty(Tile):
     @property
-    def val(self):
+    def val(self) -> int:
         raise ValueError("Empty tile has no value")
+
+    def __eq__(self, e):
+        return isinstance(e, Empty)
+
+    def __hash__(self):
+        return hash(0)
 
 
 class DigitParty:
@@ -48,18 +66,21 @@ class DigitParty:
 
     def theoretical_max_score(self) -> int:
         score = 0
-        counts = Counter(self.digits)
+        counts = Counter(list(map(lambda p: p[1], self.placements)))
         for d in counts:
             score += max_conns[counts[d]] * d.val
         return score
 
-    def _check_range(self, r: int, c: int):
+    def _check_range(self, r: int, c: int) -> None:
         if r < 0 or r >= self.n or c < 0 or c >= self.n:
             raise ValueError(f"Row {r} or column {c} outside of board of size {self.n}")
 
-    def place(self, r: int, c: int):
+    def place(self, r: int, c: int) -> None:
+        """
+        Places the next digit on the given r,c tile.
+        """
         self._check_range(r, c)
-        if self.board[r][c]:
+        if isinstance(self.board[r][c], Digit):
             raise ValueError(
                 f"Board already contains tile {self.board[r][c].val} at row {r} column {c}"
             )
@@ -76,14 +97,14 @@ class DigitParty:
         )
 
         for dr, dc in [
-            (-1, -1),
-            (-1, 0),
-            (-1, 1),
-            (0, -1),
-            (0, 1),
-            (1, -1),
-            (1, 0),
-            (1, -1),
+            (-1, -1),  # up left
+            (-1, 0),  # up
+            (-1, 1),  # up right
+            (0, -1),  # left
+            (0, 1),  # right
+            (1, -1),  # down left
+            (1, 0),  # down
+            (1, 1),  # down right
         ]:
             try:
                 self._check_range(r + dr, c + dc)
@@ -92,5 +113,131 @@ class DigitParty:
             except ValueError:
                 continue
 
-    def finished(self):
+    def finished(self) -> bool:
         return not self.digits and len(self.placements) == self.n * self.n
+
+    def _intersperse_board(self) -> List[List[Tile | str]]:
+        """
+        Intersperses the board with space to depict connections.
+        """
+        newlen = self.n + self.n - 1
+        matrix = []
+        for r in range(newlen):
+            row: List[Tile | str] = []
+            for c in range(newlen):
+                if r % 2 == 1 or c % 2 == 1:
+                    row.append("")
+                else:
+                    row.append(self.board[int(r / 2)][int(c / 2)])
+            matrix.append(row)
+        return matrix
+
+    def _add_connection(self, r: int, c: int, matrix: List[List[Tile | str]]) -> None:
+        if r % 2 == 0 and c % 2 == 1:
+            # in between tiles on a row of tiles
+            lt = matrix[r][c - 1]
+            rt = matrix[r][c + 1]
+            if isinstance(lt, Digit) and isinstance(rt, Digit) and lt.val == rt.val:
+                matrix[r][c] = "---"
+
+        elif r % 2 == 1 and c % 2 == 0:
+            # in between tiles on a col of tiles
+            up = matrix[r - 1][c]
+            dn = matrix[r + 1][c]
+            if isinstance(up, Digit) and isinstance(dn, Digit) and up.val == dn.val:
+                matrix[r][c] = "|"
+
+        elif r % 2 == 1 and c % 2 == 1:
+            # diagonally centered between 4 tiles
+            ul = matrix[r - 1][c - 1]
+            ur = matrix[r - 1][c + 1]
+            dl = matrix[r + 1][c - 1]
+            dr = matrix[r + 1][c + 1]
+            if (
+                isinstance(ul, Digit)
+                and isinstance(dr, Digit)
+                and isinstance(ur, Digit)
+                and isinstance(dl, Digit)
+                and ur.val == dl.val
+                and ul.val == dr.val
+                and ur.val == ul.val
+            ):
+                matrix[r][c] = "X"
+            elif isinstance(ul, Digit) and isinstance(dr, Digit) and ul.val == dr.val:
+                matrix[r][c] = "\\"
+            elif isinstance(ur, Digit) and isinstance(dl, Digit) and ur.val == dl.val:
+                matrix[r][c] = "/"
+
+    def _add_connections(
+        self, matrix: List[List[Tile | str]]
+    ) -> List[List[Tile | str]]:
+        """
+        Adds connections in between the board tiles.
+        """
+        # TODO: do this per placement instead of per board render. though it doesn't matter much since the game isn't meant to be played by users
+        for r in range(len(matrix)):
+            for c in range(len(matrix[0])):
+                if isinstance(matrix[r][c], Tile):
+                    continue
+
+                self._add_connection(r, c, matrix)
+
+        return matrix
+
+    def show_board(self) -> str:
+        matrix = self._add_connections(self._intersperse_board())
+
+        s = [[str(e) for e in row] for row in matrix]
+        lens = [max(map(len, col)) for col in zip(*s)]
+        fmt = "\t".join("{{:{}}}".format(x) for x in lens)
+        table = [fmt.format(*row) for row in s]
+
+        return "\n".join(table)
+
+    def next_digits(self) -> Tuple[Digit | None, Digit | None]:
+        if len(self.digits) >= 2:
+            return self.digits[-1], self.digits[-2]
+        elif len(self.digits) == 1:
+            return self.digits[0], None
+        else:
+            return None, None
+
+
+if __name__ == "__main__":
+    x = input("hi this is digit party. what game size? (default 5): ").strip()
+    if x == "":
+        n = 5
+    else:
+        n = int(x)
+
+    game = DigitParty(n=n, digits=None)
+    while not game.finished():
+        print(game.show_board())
+        print(f"current score: {game.score}")
+        curr_digit, next_digit = game.next_digits()
+        print(f"current digit: {curr_digit}")
+        print(f"next digit: {next_digit}")
+        print()
+        coord = input(
+            "give me 0-indexed row col coords from the top left to place the current digit (delimit with ','): "
+        ).strip()
+        print()
+
+        try:
+            rc = coord.split(",")[:2]
+            r = int(rc[0])
+            c = int(rc[1])
+        except (ValueError, IndexError):
+            print("can't read your coordinate input")
+            continue
+
+        try:
+            game.place(r, c)
+        except ValueError as e:
+            print(str(e))
+
+    print(game.show_board())
+    print("game finished!")
+    print(f"your score: {game.score}")
+    print(f"theoretical max score: {game.theoretical_max_score()}")
+    print(f"% of total: {100 * game.score / game.theoretical_max_score()}")
