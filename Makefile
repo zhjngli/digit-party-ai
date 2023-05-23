@@ -1,22 +1,22 @@
 .PHONY: run clean install test lint format
 
 run:
-	pipenv run python3 src/game.py
+	pipenv run python3 src
 
 clean:
-	rm -r build/ dist/ **/*.egg-info/ .mypy_cache/ && find . -name __pycache__ -type d -exec rm -r {} \;
+	rm -r build/ dist/ **/*.egg-info/ .mypy_cache/ .pytest_cache && find . -name __pycache__ -type d -exec rm -r {} \;
 
 install:
 	pipenv install
 
 test:
-	make lint && echo "You haven't set up tests yet!"
+	pipenv run pytest test && make lint
 
 lint:
-	make type-check && make format && pipenv run flake8 src
+	make type-check && make format && pipenv run flake8 src test
 
 format:
-	pipenv run black src && pipenv run isort src --profile black
+	pipenv run black src test && pipenv run isort src test --profile black
 
 type-check:
-	pipenv run mypy src
+	pipenv run mypy src test
