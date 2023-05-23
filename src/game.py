@@ -160,7 +160,6 @@ class DigitParty:
                 and isinstance(dl, Digit)
                 and ur.val == dl.val
                 and ul.val == dr.val
-                and ur.val == ul.val
             ):
                 matrix[r][c] = "X"
             elif isinstance(ul, Digit) and isinstance(dr, Digit) and ul.val == dr.val:
@@ -210,7 +209,16 @@ if __name__ == "__main__":
     else:
         n = int(x)
 
-    game = DigitParty(n=n, digits=None)
+    ds = input(
+        "do you want to input a series of digits? (for testing, default random): "
+    )
+    if ds == "":
+        game = DigitParty(n=n, digits=None)
+    else:
+        game = DigitParty(
+            n=n, digits=list(map(lambda s: int(s.strip()), ds.split(",")))
+        )
+
     while not game.finished():
         print(game.show_board())
         print(f"current score: {game.score}")
